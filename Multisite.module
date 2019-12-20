@@ -11,7 +11,7 @@
  * Licensed under MIT, see LICENSE.txt
  */
 
-class Multisite extends WireData implements Module {
+class Multisite extends WireData implements Module, ConfigurableModule {
 
 	public $domains;
 	static $domainsData;
@@ -24,12 +24,16 @@ class Multisite extends WireData implements Module {
 	public static function getModuleInfo() {
 		return array(
 			'title' => 'Multisite',
-			'version' => 12,
+			'version' => 13,
 			'summary' => 'Allows multiple sites with different domains run from single PW-site and database.',
 			'href' => 'https://github.com/somatonic/Multisite',
 			'singular' => true,
 			'autoload' => true
 			);
+	}
+
+	static public function getDefaults() {
+		return array('excludes' => array());
 	}
 
 	public function __construct() {
@@ -97,6 +101,15 @@ class Multisite extends WireData implements Module {
 
 			// if requested url is a file we don't change
 			if($this->isFormBuilder) return;
+
+			// if requested url is in exlusion we do't change
+			// exclude pages in exclusion array
+			$checkUrl = "/".trim($this->it,"/")."/";
+			for ($i=0; $i<count($this->excludes); $i++) {
+				$excludeUrl = $this->wire()->pages->get($this->excludes[$i])->url;
+				if (substr($checkUrl,0,strlen($excludeUrl)) === $excludeUrl) return;
+				if ($checkUrl === $this->wire()->pages->get($this->excludes[$i])->url) return;
+			}
 
 			// language page names support if installed
 			// strip off the lang segment, to later prepend it again
@@ -312,4 +325,33 @@ class Multisite extends WireData implements Module {
 			wire("config")->http404PageID = (int) $this->domains[$domain]['http404'];
 		}
 	}
+
+	/**
+	 * Module configuration (static)
+	 *
+	 * @param array $data
+	 * @return InputfieldWrapper
+	 *
+	 */
+	public function getModuleConfigInputfields(array $data) {
+
+		$inputfields = new InputfieldWrapper();
+		$fieldset = $this->wire('modules')->get("InputfieldFieldset");
+
+		$defaults = self::getDefaults();
+		$data = array_merge($defaults, $data);
+
+		$field = $this->wire('modules')->get('InputfieldPageListSelectMultiple');
+		$field->attr('name', 'excludes');
+		$field->label = 'Exclude multisite redirect on these pages';
+		$field->description = 'Select the pages which should ignore the MultiSite redirects';
+		$value = is_array($data['excludes']) ?$data['excludes'] : array();
+		$field->attr('value', $value);
+		$fieldset->add($field);
+
+		$inputfields->add($fieldset);
+		return $inputfields;
+
+	 }
+
 }
